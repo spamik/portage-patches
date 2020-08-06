@@ -1,0 +1,10 @@
+--- a/src/delegates/tag_item.cpp
++++ b/src/delegates/tag_item.cpp
+@@ -23,6 +23,7 @@
+ 
+ #include <algorithm> /* std::sort */
+ #include <QPainter>
++#include <QPainterPath>
+ 
+ #include "src/datovka_shared/localisation/localisation.h"
+ #include "src/datovka_shared/log/log.h"
