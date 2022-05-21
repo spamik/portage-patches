@@ -1,0 +1,127 @@
+--- a/drivers/thermal/intel/int340x_thermal/int3400_thermal.c
++++ b/drivers/thermal/intel/int340x_thermal/int3400_thermal.c
+@@ -236,8 +236,7 @@ static int int3400_thermal_get_uuids(struct int3400_thermal_priv *priv)
+ 	return result;
+ }
+ 
+-static int int3400_thermal_run_osc(acpi_handle handle,
+-				enum int3400_thermal_uuid uuid, bool enable)
++static int int3400_thermal_run_osc(acpi_handle handle, char *uuid_str, int query, int length, int *enable)
+ {
+ 	u32 ret, buf[2];
+ 	acpi_status status;
+@@ -245,23 +244,20 @@ static int int3400_thermal_run_osc(acpi_handle handle,
+ 	struct acpi_osc_context context = {
+ 		.uuid_str = NULL,
+ 		.rev = 1,
+-		.cap.length = 8,
++		.cap.length = length,
+ 	};
+ 
+-	if (uuid < 0 || uuid >= INT3400_THERMAL_MAXIMUM_UUID)
+-		return -EINVAL;
+-
+-	context.uuid_str = int3400_thermal_uuids[uuid];
++	context.uuid_str = uuid_str;
+ 
+-	buf[OSC_QUERY_DWORD] = 0;
+-	buf[OSC_SUPPORT_DWORD] = enable;
++	buf[OSC_QUERY_DWORD] = query;
++	buf[OSC_SUPPORT_DWORD] = *enable;
+ 
+ 	context.cap.pointer = buf;
+ 
+ 	status = acpi_run_osc(handle, &context);
+ 	if (ACPI_SUCCESS(status)) {
+ 		ret = *((u32 *)(context.ret.pointer + 4));
+-		if (ret != enable)
++		if (ret != *enable)
+ 			result = -EPERM;
+ 	} else
+ 		result = -EPERM;
+@@ -426,10 +422,18 @@ static int int3400_thermal_change_mode(struct thermal_zone_device *thermal,
+ 	if (!priv)
+ 		return -EINVAL;
+ 
+-	if (mode != thermal->mode)
++	if (mode != thermal->mode) {
++		int enabled;
++
++		if (priv->current_uuid_index < 0 ||
++		    priv->current_uuid_index >= INT3400_THERMAL_MAXIMUM_UUID)
++		return -EINVAL;
++
++		enabled = (mode == THERMAL_DEVICE_ENABLED);
+ 		result = int3400_thermal_run_osc(priv->adev->handle,
+-						priv->current_uuid_index,
+-						mode == THERMAL_DEVICE_ENABLED);
++						 int3400_thermal_uuids[priv->current_uuid_index], 0, 8,
++						 &enabled);
++	}
+ 
+ 
+ 	evaluate_odvp(priv);
+@@ -473,6 +477,29 @@ static void int3400_setup_gddv(struct int3400_thermal_priv *priv)
+ 	kfree(buffer.pointer);
+ }
+ 
++static ssize_t enable_policy_store(struct device *dev,
++				   struct device_attribute *attr,
++				   const char *buf, size_t count)
++{
++	struct int3400_thermal_priv *priv = dev_get_drvdata(dev);
++	int input, ret;
++
++	ret = kstrtouint(buf, 10, &input);
++	if (ret)
++		return ret;
++
++	dev_info(dev, "%s input: %d\n", __func__, input);
++	ret = int3400_thermal_run_osc(priv->adev->handle, "b23ba85d-c8b7-3542-88de-8de2ffcfd698",
++				      0, 8, &input);
++	dev_info(dev, "%s ret:%d\n", __func__, ret);
++	if (ret)
++		return -EIO;
++
++	return count;
++}
++
++static DEVICE_ATTR_WO(enable_policy);
++
+ static int int3400_thermal_probe(struct platform_device *pdev)
+ {
+ 	struct acpi_device *adev = ACPI_COMPANION(&pdev->dev);
+@@ -489,11 +516,15 @@ static int int3400_thermal_probe(struct platform_device *pdev)
+ 	priv->pdev = pdev;
+ 	priv->adev = adev;
+ 
++	result = device_create_file(&pdev->dev, &dev_attr_enable_policy);
++	if (result)
++		goto free_priv;
++
+ 	result = int3400_thermal_get_uuids(priv);
+ 
+ 	/* Missing IDSP isn't fatal */
+ 	if (result && result != -ENODEV)
+-		goto free_priv;
++		goto free_policy_attr;
+ 
+ 	priv->current_uuid_index = -1;
+ 
+@@ -566,6 +597,8 @@ static int int3400_thermal_probe(struct platform_device *pdev)
+ free_art_trt:
+ 	kfree(priv->trts);
+ 	kfree(priv->arts);
++free_policy_attr:
++	device_remove_file(&pdev->dev, &dev_attr_enable_policy);
+ free_priv:
+ 	kfree(priv);
+ 	return result;
+@@ -592,6 +625,7 @@ static int int3400_thermal_remove(struct platform_device *pdev)
+ 	kfree(priv->data_vault);
+ 	kfree(priv->trts);
+ 	kfree(priv->arts);
++	device_remove_file(&pdev->dev, &dev_attr_enable_policy);
+ 	kfree(priv);
+ 	return 0;
+ }
