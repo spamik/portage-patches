@@ -1,0 +1,46 @@
+diff -urNp shotwell-0.30.15-orig/meson.build shotwell-0.30.15-dwok/meson.build
+--- shotwell-0.30.15-orig/meson.build	2022-04-05 20:48:02.689972989 +0200
++++ shotwell-0.30.15-dwok/meson.build	2022-04-05 20:45:27.367405304 +0200
+@@ -64,7 +64,7 @@ endif
+ libraw = dependency('libraw', version : '>= 0.13.2')
+ libexif = dependency('libexif', version : '>= 0.6.16')
+ unity = dependency('unity', required : false)
+-gdk = [ dependency('gdk-x11-3.0'), dependency('gdk-wayland-3.0') ]
++gdk = [ dependency('gdk-x11-3.0'), dependency('gdk-wayland-3.0', required: false) ]
+ 
+ unity_available = false
+ if unity.found() and get_option('unity-support')
+diff -urNp shotwell-0.30.15-orig/src/Portal.vala shotwell-0.30.15-dwok/src/Portal.vala
+--- shotwell-0.30.15-orig/src/Portal.vala	2022-04-05 20:45:23.183336136 +0200
++++ shotwell-0.30.15-dwok/src/Portal.vala	2022-04-05 20:47:05.957035118 +0200
+@@ -53,15 +53,7 @@ public class Portal : GLib.Object {
+     private static async string get_parent_window () {
+         var window = AppWindow.get_instance().get_window ();
+ 
+-        if (window is Gdk.Wayland.Window) {
+-            var handle = "wayland:";
+-            ((Gdk.Wayland.Window) window).export_handle ((w, h) => {
+-                handle += h;
+-                get_parent_window.callback ();
+-            });
+-            yield;
+-            return handle;
+-        } else if (window is Gdk.X11.Window) {
++        if (window is Gdk.X11.Window) {
+             return "x11:%x".printf ((uint) ((Gdk.X11.Window) window).get_xid ());
+         } else {
+             warning ("Could not get parent window");
+diff -urNp shotwell-0.30.15-orig/vapi/gdk-wayland-3.0.vapi shotwell-0.30.15-dwok/vapi/gdk-wayland-3.0.vapi
+--- shotwell-0.30.15-orig/vapi/gdk-wayland-3.0.vapi	2022-04-05 20:45:23.203336466 +0200
++++ shotwell-0.30.15-dwok/vapi/gdk-wayland-3.0.vapi	1970-01-01 01:00:00.000000000 +0100
+@@ -1,10 +0,0 @@
+-[CCode (cheader_filename = "gdk/gdkwayland.h")]
+-namespace Gdk.Wayland {
+-    [CCode (type_id = "GDK_TYPE_WAYLAND_WINDOW", type_check_function = "GDK_IS_WAYLAND_WINDOW")]
+-    public class Window : Gdk.Window {
+-        public bool export_handle (owned WindowExported callback);
+-    }
+-
+-    [CCode (instance_pos = 2.9)]
+-    public delegate void WindowExported (Gdk.Window window, string handle);
+-}
