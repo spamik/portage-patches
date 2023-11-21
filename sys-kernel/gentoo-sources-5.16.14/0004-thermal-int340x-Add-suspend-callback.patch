@@ -1,0 +1,67 @@
+From 83d4c8cb15f7ddafb50dc667f2de3f6edf234dfa Mon Sep 17 00:00:00 2001
+From: Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>
+Date: Wed, 16 Mar 2022 07:29:48 -0700
+Subject: [PATCH] thermal: int340x: Add suspend callback
+
+Add suspend callback to issue _OSC to inform firmware that OS is not
+controlling any thermals.
+
+Signed-off-by: Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>
+---
+ .../intel/int340x_thermal/int3400_thermal.c   | 23 ++++++++++++++++++-
+ 1 file changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/thermal/intel/int340x_thermal/int3400_thermal.c b/drivers/thermal/intel/int340x_thermal/int3400_thermal.c
+index 5d0ed7fa9dc4..2f9438d51902 100644
+--- a/drivers/thermal/intel/int340x_thermal/int3400_thermal.c
++++ b/drivers/thermal/intel/int340x_thermal/int3400_thermal.c
+@@ -642,6 +642,25 @@ static int int3400_thermal_remove(struct platform_device *pdev)
+ 
+ 
+ #ifdef CONFIG_PM_SLEEP
++static int int3400_thermal_suspend(struct device *dev)
++{
++	struct int3400_thermal_priv *priv = dev_get_drvdata(dev);
++
++	if (!priv)
++		return 0;
++
++	if (priv->os_uuid_mask) {
++		int cap;
++
++		cap = 0;
++		int3400_thermal_run_osc(priv->adev->handle,
++					"b23ba85d-c8b7-3542-88de-8de2ffcfd698", &cap);
++		pr_info("Reset _OSC cap to 0\n");
++	}
++
++	return 0;
++}
++
+ static int int3400_thermal_resume(struct device *dev)
+ {
+ 	struct int3400_thermal_priv *priv = dev_get_drvdata(dev);
+@@ -664,6 +683,7 @@ static int int3400_thermal_resume(struct device *dev)
+ 		cap = ((priv->os_uuid_mask << 1) | 0x01);
+ 		int3400_thermal_run_osc(priv->adev->handle,
+ 					"b23ba85d-c8b7-3542-88de-8de2ffcfd698", &cap);
++		pr_info("Restore _OSC cap to 0x%x\n", priv->os_uuid_mask);
+ 	}
+ 
+ 	evaluate_odvp(priv);
+@@ -671,10 +691,11 @@ static int int3400_thermal_resume(struct device *dev)
+ 	return 0;
+ }
+ #else
++#define int3400_thermal_suspend NULL
+ #define int3400_thermal_resume NULL
+ #endif
+ 
+-static SIMPLE_DEV_PM_OPS(int3400_thermal_pm, NULL, int3400_thermal_resume);
++static SIMPLE_DEV_PM_OPS(int3400_thermal_pm, int3400_thermal_suspend, int3400_thermal_resume);
+ 
+ static const struct acpi_device_id int3400_thermal_match[] = {
+ 	{"INT3400", 0},
+-- 
+2.35.1
+

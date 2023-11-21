@@ -1,0 +1,20 @@
+diff --git a/drivers/thermal/intel/int340x_thermal/int3400_thermal.c b/drivers/thermal/intel/int340x_thermal/int3400_thermal.c
+index 2f9438d51902..a2fb8f3f5964 100644
+--- a/drivers/thermal/intel/int340x_thermal/int3400_thermal.c
++++ b/drivers/thermal/intel/int340x_thermal/int3400_thermal.c
+@@ -585,6 +585,15 @@ static int int3400_thermal_probe(struct platform_device *pdev)
+ 			goto free_uuid;
+ 	}
+ 
++	{
++              int cap;
++
++                cap = 0;
++                int3400_thermal_run_osc(priv->adev->handle,
++                                        "b23ba85d-c8b7-3542-88de-8de2ffcfd698", &cap);
++                pr_info("init _OSC cap to 0\n");
++
++	}
+ 	result = acpi_install_notify_handler(
+ 			priv->adev->handle, ACPI_DEVICE_NOTIFY, int3400_notify,
+ 			(void *)priv);
