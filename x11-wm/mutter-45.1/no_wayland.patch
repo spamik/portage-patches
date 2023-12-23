@@ -1,0 +1,26 @@
+diff -Naur mutter-45.0-1/src/backends/x11/nested/meta-backend-x11-nested.c mutter-45.0-2/src/backends/x11/nested/meta-backend-x11-nested.c
+--- mutter-45.0-1/src/backends/x11/nested/meta-backend-x11-nested.c	2023-09-16 23:51:03.000000000 +0300
++++ mutter-45.0-2/src/backends/x11/nested/meta-backend-x11-nested.c	2023-09-23 16:11:35.944814629 +0300
+@@ -25,7 +25,9 @@
+ #include "backends/x11/nested/meta-cursor-renderer-x11-nested.h"
+ #include "backends/x11/nested/meta-renderer-x11-nested.h"
+ 
++#ifdef HAVE_WAYLAND
+ #include "wayland/meta-wayland.h"
++#endif
+ 
+ typedef struct _MetaBackendX11NestedPrivate
+ {
+diff -Naur mutter-45.0-1/src/core/meta-context-main.c mutter-45.0-2/src/core/meta-context-main.c
+--- mutter-45.0-1/src/core/meta-context-main.c	2023-09-16 23:51:03.000000000 +0300
++++ mutter-45.0-2/src/core/meta-context-main.c	2023-09-23 16:10:01.534968820 +0300
+@@ -33,7 +33,9 @@
+ #include "backends/meta-virtual-monitor.h"
+ #include "backends/x11/cm/meta-backend-x11-cm.h"
+ #include "meta/meta-backend.h"
++#ifdef HAVE_WAYLAND
+ #include "wayland/meta-wayland.h"
++#endif
+ #include "x11/session.h"
+ 
+ #ifdef HAVE_NATIVE_BACKEND
