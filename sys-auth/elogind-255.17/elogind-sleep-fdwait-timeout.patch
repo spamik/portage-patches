@@ -5,7 +5,7 @@
                          return r;
  
 -                r = fd_wait_for_event(tfd, POLLIN, 0);
-+                r = fd_wait_for_event(tfd, POLLIN, 500*1000);
++                r = fd_wait_for_event(tfd, POLLIN, 950*1000);
                  if (r < 0)
                          return log_error_errno(r, "Error polling timerfd: %m");
                  /* Store fd_wait status */
