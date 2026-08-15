@@ -1,0 +1,106 @@
+--- a/data/openrc/gsd
++++ b/data/openrc/gsd
+@@ -12,4 +12,47 @@
+ 
+ depend() {
+ 	need dbus
++	after gnome-shell-wayland gnome-shell-x11
++}
++
++start_pre() {
++	# HACK: Need better openrc env handling.
++	# gsd-* is started directly by supervise-daemon, outside the normal
++	# gnome-session chain, so it never sees the session vars gdm sets
++	# (XDG_CURRENT_DESKTOP, XDG_SESSION_TYPE, ...) or the ones mutter sets
++	# at runtime once Xwayland is up (DISPLAY, WAYLAND_DISPLAY, XAUTHORITY).
++	# Import the former from the session leader's exec-time environment
++	# (same trick gnome-shell-wayland uses), and discover the latter live
++	# from the running Xwayland process / wayland socket, since setenv()
++	# calls never show up in /proc/PID/environ.
++	if [ -f "${XDG_RUNTIME_DIR}/gnome-session-leader.pid" ]; then
++		while read -d $'\0' -r line; do
++			# Do not clobber PATH: openrc-run prepends its own helper-binary
++			# dirs (ebegin/eend/service_set_value live there) and the leader
++			# process's PATH doesn't have them, which breaks supervise-daemon.
++			case "${line}" in
++				PATH=*) continue ;;
++			esac
++			export "${line}"
++		done < "/proc/$(cat "${XDG_RUNTIME_DIR}/gnome-session-leader.pid")/environ" 2>/dev/null
++	fi
++
++	_disp_pid="$(pgrep -xn Xwayland)"
++	[ -z "${_disp_pid}" ] && _disp_pid="$(pgrep -xn Xorg)"
++	if [ -n "${_disp_pid}" ]; then
++		_disp_cmdline="$(tr '\0' ' ' < "/proc/${_disp_pid}/cmdline")"
++		DISPLAY="${_disp_cmdline#* }"; DISPLAY="${DISPLAY%% *}"
++		export DISPLAY
++		case "${_disp_cmdline}" in
++			*" -auth "*)
++				XAUTHORITY="${_disp_cmdline##*-auth }"; XAUTHORITY="${XAUTHORITY%% *}"
++				export XAUTHORITY
++				;;
++		esac
++	fi
++
++	_wl_sock="$(ls -1 "${XDG_RUNTIME_DIR}"/wayland-[0-9]* 2>/dev/null | grep -v '\.lock$' | head -n1)"
++	[ -n "${_wl_sock}" ] && export WAYLAND_DISPLAY="$(basename "${_wl_sock}")"
++
++	return 0
+ }
+--- a/data/openrc/gsd-xsettings
++++ b/data/openrc/gsd-xsettings
+@@ -2,8 +2,6 @@
+ 
+ DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+ export DBUS_SESSION_BUS_ADDRESS
+-DISPLAY=:2
+-export DISPLAY
+ 
+ supervisor=supervise-daemon
+ description="${RC_SVCNAME} daemon"
+@@ -14,4 +12,44 @@
+ 
+ depend() {
+ 	need dbus
++	after gnome-shell-wayland gnome-shell-x11
++}
++
++start_pre() {
++	# HACK: Need better openrc env handling.
++	# See /etc/user/init.d/gsd for why this is needed: gsd-xsettings is
++	# started directly by supervise-daemon and previously hardcoded a stale
++	# DISPLAY=:2 from some earlier session. Xwayland's display number and
++	# XAUTHORITY path are randomized every login, so discover them live from
++	# the running Xwayland process instead of hardcoding anything.
++	if [ -f "${XDG_RUNTIME_DIR}/gnome-session-leader.pid" ]; then
++		while read -d $'\0' -r line; do
++			# Do not clobber PATH: openrc-run prepends its own helper-binary
++			# dirs (ebegin/eend/service_set_value live there) and the leader
++			# process's PATH doesn't have them, which breaks supervise-daemon.
++			case "${line}" in
++				PATH=*) continue ;;
++			esac
++			export "${line}"
++		done < "/proc/$(cat "${XDG_RUNTIME_DIR}/gnome-session-leader.pid")/environ" 2>/dev/null
++	fi
++
++	_disp_pid="$(pgrep -xn Xwayland)"
++	[ -z "${_disp_pid}" ] && _disp_pid="$(pgrep -xn Xorg)"
++	if [ -n "${_disp_pid}" ]; then
++		_disp_cmdline="$(tr '\0' ' ' < "/proc/${_disp_pid}/cmdline")"
++		DISPLAY="${_disp_cmdline#* }"; DISPLAY="${DISPLAY%% *}"
++		export DISPLAY
++		case "${_disp_cmdline}" in
++			*" -auth "*)
++				XAUTHORITY="${_disp_cmdline##*-auth }"; XAUTHORITY="${XAUTHORITY%% *}"
++				export XAUTHORITY
++				;;
++		esac
++	fi
++
++	_wl_sock="$(ls -1 "${XDG_RUNTIME_DIR}"/wayland-[0-9]* 2>/dev/null | grep -v '\.lock$' | head -n1)"
++	[ -n "${_wl_sock}" ] && export WAYLAND_DISPLAY="$(basename "${_wl_sock}")"
++
++	return 0
+ }
